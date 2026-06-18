@@ -1,8 +1,9 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-  <title>AoS 4th • Damage Calculator v0.6</title>
+  <title>AoS 4th • Damage Calculator v0.7</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
@@ -192,9 +193,9 @@
 <body>
 <div class="app" id="app">
   <div class="wgh-banner"><span>WGH Warducks</span></div>
-  <div id="screen1" class="screen active"><h2>⚔️ Attack Profiles <span class="version-badge">v0.6</span></h2><div id="profilesContainer"></div><button class="btn" id="addProfileBtn">➕ Add Profile</button></div>
+  <div id="screen1" class="screen active"><h2>⚔️ Attack Profiles <span class="version-badge">v0.7</span></h2><div id="profilesContainer"></div><button class="btn" id="addProfileBtn">➕ Add Profile</button></div>
   <div id="screen2" class="screen"><h2>📊 Save Comparison</h2><div class="flex-row"><label style="color:#e0e0e0;font-size:12px;">Ward: <select id="globalWardSelect"><option value="0">None</option><option value="6">6+</option><option value="5">5+</option><option value="4">4+</option></select></label><label class="toggle-combine"><input type="checkbox" id="combineWeaponsToggle" onchange="combineWeapons=this.checked;renderScreen2();renderScreen3();"> Combine weapons</label></div><div id="saveChartContainer" class="card" style="padding:4px;"></div><div id="saveTableContainer"></div></div>
-  <div id="screen3" class="screen"><h2>🎲 Damage Distribution</h2><div class="flex-row"><label style="color:#e0e0e0;font-size:12px;">Save: <select id="distSaveSelect"><option value="0">None</option><option value="6">6+</option><option value="5">5+</option><option value="4" selected>4+</option><option value="3">3+</option><option value="2">2+</option></select></label><label style="color:#e0e0e0;font-size:12px;">Ward: <select id="distWardSelect"><option value="0">None</option><option value="6">6+</option><option value="5">5+</option><option value="4">4+</option></select></label><label style="color:#e0e0e0;font-size:12px;">Show: <select id="distProfileSelect"><option value="all">All Profiles</option></select></label></div><div id="distChartContainer" class="card chart-scroll" style="padding:4px;"><div class="scroll-hint">← scroll chart →</div></div><div id="distStatsContainer" class="card"></div></div>
+  <div id="screen3" class="screen"><h2>🎲 Damage Distribution</h2><div class="flex-row"><label style="color:#e0e0e0;font-size:12px;">Save: <select id="distSaveSelect"><option value="0">None</option><option value="6">6+</option><option value="5">5+</option><option value="4" selected>4+</option><option value="3">3+</option><option value="2">2+</option></select></label><label style="color:#e0e0e0;font-size:12px;">Ward: <select id="distWardSelect"><option value="0">None</option><option value="6">6+</option><option value="5">5+</option><option value="4">4+</option></select></label><label style="color:#e0e0e0;font-size:12px;">Show: <select id="distProfileSelect"><option value="all">All Profiles</option></select></label><label class="toggle-combine"><input type="checkbox" id="combineWeaponsToggle3" onchange="combineWeapons=this.checked;document.getElementById('combineWeaponsToggle').checked=this.checked;renderScreen2();renderScreen3();"> Combine weapons</label></div><div id="distChartContainer" class="card chart-scroll" style="padding:4px;"><div class="scroll-hint">← scroll chart →</div></div><div id="distStatsContainer" class="card"></div></div>
   <div id="screen4" class="screen"><h2>💀 Kill Probability</h2><div class="card"><div class="stepper-row"><span class="stepper-label">Wounds</span><div class="stepper-control" id="killWoundsStepper"></div></div><div class="stepper-row"><span class="stepper-label">Models</span><div class="stepper-control" id="killModelsStepper"></div></div><div class="flex-row"><label style="color:#e0e0e0;font-size:12px;">Save: <select id="killSaveSelect"><option value="0">None</option><option value="6">6+</option><option value="5">5+</option><option value="4">4+</option><option value="3">3+</option><option value="2">2+</option></select></label><label style="color:#e0e0e0;font-size:12px;">Ward: <select id="killWardSelect"><option value="0">None</option><option value="6">6+</option><option value="5">5+</option><option value="4">4+</option></select></label></div><div class="buff-toggles-row"><span>Buffs:</span><div id="buffToggles" style="display:flex;flex-wrap:wrap;gap:4px;"></div></div><div class="debuff-toggles-row"><span>Debuffs:</span><div id="debuffToggles" style="display:flex;flex-wrap:wrap;gap:4px;"></div><button class="btn tiny" onclick="clearBuffsDebuffs()">Clear all</button></div></div><div id="killStatsContainer"></div><div id="killChartContainer" class="card" style="padding:4px;"></div><div id="killBreakdownContainer" class="chart-scroll"><div class="scroll-hint">← scroll table →</div></div></div>
 </div>
 <div class="bottom-nav-wrapper">
@@ -207,7 +208,7 @@
 </div>
 
 <script>
-  // ==================== v0.6 – Ward fix + bug fixes + code cleanup + AoA/AoD + responsive + skull + fixed nav ====================
+  // ==================== v0.7 – Crit fixes, auto-wound, rend range, models cap, combine toggle, sample data ====================
   let combineWeapons = true;
   const PALETTE = ['#c9a84c', '#cd7f32', '#c0c0c0', '#7f8c8d'];
   let profiles = [], distSelectedVal = 'all', killState = { wounds:2, models:5 }, pendingRender = false;
@@ -316,63 +317,78 @@
     const pSix = 1 / 6;
     const pWound = (7 - woundTarget) / 6;
     const pWardFail = wardFailProb(wardVal);
-    const pFail = saveFailProb(saveChar, weapon.rend, aodBonus);
+    const pSaveFail = saveFailProb(saveChar, weapon.rend, aodBonus);
     const dmgDist = distribution(weapon.damage);
     if (!dmgDist) return null;
     const critType = weapon.critType;
 
-    function normalHitMap() {
+    // Simple hit map: hit → wound → save → ward → damage (NO crit effects)
+    function simpleHitMap() {
       let map = new Map();
-      let through = pWound * pFail * pWardFail;
+      let through = pWound * pSaveFail * pWardFail;
       for (let d of dmgDist) map.set(d.value, (map.get(d.value) || 0) + through * d.prob);
       let missProb = 1 - through;
       if (missProb > 0) map.set(0, (map.get(0) || 0) + missProb);
       return map;
     }
 
-    if (critType === 'none') {
-      let allHitMap = normalHitMap();
-      let final = new Map();
-      final.set(0, pMiss);
-      for (let [v, p] of allHitMap) final.set(v, (final.get(v) || 0) + (pHit + pSix) * p);
-      return Array.from(final, ([v, p]) => ({ value: v, prob: p })).sort((a, b) => a.value - b.value);
-    }
-
+    // Crit hit map - builds the result for a single crit (6 on hit roll)
     function critHitMap() {
       if (critType === 'mortal') {
+        // Mortal on crit: roll damage dice, each point is a mortal wound that only ward can stop
         let result = new Map();
         for (let d of dmgDist) {
           let binom = binomialDistribution(d.value, pWardFail);
           for (let {value: k, prob: bp} of binom) result.set(k, (result.get(k) || 0) + d.prob * bp);
         }
         return result;
-      } else {
-        let base = new Map();
-        let through = pFail * pWardFail;
+      } else if (critType === 'autoWound') {
+        // Auto-wound on crit: skip wound roll, go straight to save → ward → damage
+        let result = new Map();
+        let through = pSaveFail * pWardFail;
+        for (let d of dmgDist) result.set(d.value, (result.get(d.value) || 0) + through * d.prob);
+        let missProb = 1 - through;
+        if (missProb > 0) result.set(0, (result.get(0) || 0) + missProb);
+        return result;
+      } else if (critType === 'doubleDamage') {
+        // Double damage on crit
+        let result = new Map();
+        let through = pWound * pSaveFail * pWardFail;
         for (let d of dmgDist) {
-          let dmg = d.value;
-          if (critType === 'doubleDamage') dmg *= 2;
-          base.set(dmg, (base.get(dmg) || 0) + through * d.prob);
+          let dmg = d.value * 2;
+          result.set(dmg, (result.get(dmg) || 0) + through * d.prob);
         }
         let missProb = 1 - through;
-        if (missProb > 0) base.set(0, (base.get(0) || 0) + missProb);
-        if (critType === 'extraHit') {
-          let extra = normalHitMap();
-          let result = new Map();
-          for (let [v1, p1] of base) for (let [v2, p2] of extra) { let v = v1 + v2; result.set(v, (result.get(v) || 0) + p1 * p2); }
-          return result;
-        }
-        return base;
+        if (missProb > 0) result.set(0, (result.get(0) || 0) + missProb);
+        return result;
+      } else if (critType === 'extraHit') {
+        // Crit generates 2 hits: this crit + one extra normal hit
+        // FIXED: extra hit uses simpleHitMap (no crits), NOT normalHitMap
+        let baseMap = new Map();
+        let through = pWound * pSaveFail * pWardFail;
+        for (let d of dmgDist) baseMap.set(d.value, (baseMap.get(d.value) || 0) + through * d.prob);
+        let missProb = 1 - through;
+        if (missProb > 0) baseMap.set(0, (baseMap.get(0) || 0) + missProb);
+        // Extra hit from crit - use SIMPLE hit map (no recursive crits)
+        let extra = simpleHitMap();
+        let result = new Map();
+        for (let [v1, p1] of baseMap) for (let [v2, p2] of extra) { let v = v1 + v2; result.set(v, (result.get(v) || 0) + p1 * p2); }
+        return result;
+      } else {
+        // No crit effect (none) - same as simple hit
+        return simpleHitMap();
       }
     }
 
+    // Combine: pMiss → 0 damage, pHit → normal hit, pSix → crit hit
     let final = new Map();
     final.set(0, pMiss);
-    let normalMap = normalHitMap();
+    let normalMap = simpleHitMap();
     for (let [v, p] of normalMap) final.set(v, (final.get(v) || 0) + pHit * p);
     let critMap = critHitMap();
     for (let [v, p] of critMap) final.set(v, (final.get(v) || 0) + pSix * p);
 
+    // Normalize
     let total = 0;
     for (let p of final.values()) total += p;
     if (total > 0 && Math.abs(total - 1) > 1e-10) for (let [k, p] of final) final.set(k, p / total);
@@ -408,9 +424,13 @@
   function newWeapon(index) { return { id: Date.now() + Math.random(), name: 'Weapon ' + (index + 1), attacks: '2', hit: 4, wound: 4, rend: 0, damage: '1', critType: 'none' }; }
   function newProfile(name, color) { return { id: Date.now() + Math.random(), name, color, models: 1, leader: false, weapons: [newWeapon(0)], visible: true }; }
   function initProfiles() {
+    // Ironweld Cannonade sample data
     profiles = [
-      { id:1, name:'Dracoth Riders', color:PALETTE[0], models:2, leader:false, weapons:[{ id:101, name:'Storm-wreathed Blades', attacks:'3', hit:3, wound:3, rend:-1, damage:'1', critType:'mortal' }], visible:true },
-      { id:2, name:'Vindictors', color:PALETTE[1], models:5, leader:true, weapons:[{ id:201, name:'Stormstrike Halberd', attacks:'2', hit:3, wound:4, rend:0, damage:'1', critType:'none' }], visible:true }
+      { id:1, name:'Ironweld Cannonade', color:PALETTE[0], models:1, leader:false, weapons:[
+        { id:101, name:'Great Cannon', attacks:'4', hit:4, wound:2, rend:-2, damage:'4', critType:'none' },
+        { id:102, name:'Volley Gun', attacks:'6', hit:4, wound:3, rend:-1, damage:'D3', critType:'none' },
+        { id:103, name:'Crew Small Arms', attacks:'6', hit:3, wound:3, rend:-1, damage:'2', critType:'none' }
+      ], visible:true }
     ];
   }
   function getUnusedColor() { let u = profiles.map(p => p.color); for (let c of PALETTE) if (!u.includes(c)) return c; return PALETTE[profiles.length % PALETTE.length]; }
@@ -464,7 +484,7 @@
 
   function renderProfiles() {
     let c = document.getElementById('profilesContainer'); c.innerHTML = '';
-    profiles.forEach((p, idx) => { c.insertAdjacentHTML('beforeend', renderProfileCard(idx)); buildStepper('models-stepper-'+idx,{min:1,max:20,value:p.models,onChange:(v)=>setProfileField(idx,'models',v)}); renderWeapons(idx); updateSummaryLine(idx); });
+    profiles.forEach((p, idx) => { c.insertAdjacentHTML('beforeend', renderProfileCard(idx)); buildStepper('models-stepper-'+idx,{min:1,max:40,value:p.models,onChange:(v)=>setProfileField(idx,'models',v)}); renderWeapons(idx); updateSummaryLine(idx); });
   }
 
   function renderWeapons(pi) {
@@ -475,7 +495,7 @@
       container.appendChild(wc);
       buildStepper('whit-'+pi+'-'+wi,{min:2,max:6,value:w.hit,format:(v)=>v+'+',onChange:(v)=>setWeaponField(pi,wi,'hit',v)});
       buildStepper('wwnd-'+pi+'-'+wi,{min:2,max:6,value:w.wound,format:(v)=>v+'+',onChange:(v)=>setWeaponField(pi,wi,'wound',v)});
-      buildStepper('wrend-'+pi+'-'+wi,{min:-3,max:0,value:w.rend,format:(v)=>v===0?'—':'−'+Math.abs(v),onChange:(v)=>setWeaponField(pi,wi,'rend',v)});
+      buildStepper('wrend-'+pi+'-'+wi,{min:-5,max:0,value:w.rend,format:(v)=>v===0?'—':(v>0?'+'+v:'−'+Math.abs(v)),onChange:(v)=>setWeaponField(pi,wi,'rend',v)});
       buildWeaponCritRadios('wcrit-'+pi+'-'+wi,pi,wi,w.critType); validateWeaponInput(pi,wi,'attacks'); validateWeaponInput(pi,wi,'damage');
     });
   }
@@ -509,6 +529,8 @@
   function renderScreen3() {
     let save=parseInt(document.getElementById('distSaveSelect').value),ward=parseInt(document.getElementById('distWardSelect').value),sel=document.getElementById('distProfileSelect');
     sel.innerHTML='<option value="all">All Profiles</option>'+profiles.map((p,i)=>`<option value="${i}" ${String(i)===distSelectedVal?'selected':''}>${escHtml(p.name)}</option>`).join('');
+    // Sync combine toggle
+    document.getElementById('combineWeaponsToggle3').checked=combineWeapons;
     let val=sel.value;distSelectedVal=val;let allDists=[];
     if(val==='all'){profiles.forEach(p=>{let d=computeProfileDistribution(p,save,ward);if(d)allDists.push({name:p.name,color:p.color,dist:d})})}
     else{let p=profiles[parseInt(val)];if(combineWeapons){let d=computeProfileDistribution(p,save,ward);if(d)allDists.push({name:p.name,color:p.color,dist:d})}else p.weapons.forEach((w,wi)=>{let wp=JSON.parse(JSON.stringify(p));wp.weapons=[w];wp.leader=false;let d=computeProfileDistribution(wp,save,ward);if(d)allDists.push({name:w.name||(p.name+' W'+(wi+1)),color:p.color,dist:d})})}
@@ -524,9 +546,10 @@
   }
   ['distSaveSelect','distWardSelect'].forEach(id=>{document.getElementById(id).onchange=()=>renderScreen3();});
   document.getElementById('distProfileSelect').onchange=function(){distSelectedVal=this.value;renderScreen3();};
+  document.getElementById('combineWeaponsToggle3').onchange=function(){combineWeapons=this.checked;document.getElementById('combineWeaponsToggle').checked=this.checked;renderScreen2();renderScreen3();};
 
   // ==================== SCREEN 4 ====================
-  function buildKillSteppers(){function bk(id,key,min,max){buildStepper(id,{min:min,max:max,value:killState[key],onChange:(v)=>{killState[key]=v;renderScreen4();}})}bk('killWoundsStepper','wounds',1,40);bk('killModelsStepper','models',1,20)}
+  function buildKillSteppers(){function bk(id,key,min,max){buildStepper(id,{min:min,max:max,value:killState[key],onChange:(v)=>{killState[key]=v;renderScreen4();}})}bk('killWoundsStepper','wounds',1,40);bk('killModelsStepper','models',1,40)}
   function buildBuffToggles(){let c=document.getElementById('buffToggles');if(!c)return;c.innerHTML='';[{key:'aoa',label:'AoA'},{key:'aod',label:'AoD'}].forEach(o=>{let l=document.createElement('label');l.className='buff-toggle';let i=document.createElement('input');i.type='checkbox';i.checked=killBuffs[o.key];i.onchange=()=>{killBuffs[o.key]=i.checked;renderScreen4();};l.appendChild(i);l.appendChild(document.createTextNode(o.label));c.appendChild(l)})}
   function buildDebuffToggles(){let c=document.getElementById('debuffToggles');if(!c)return;c.innerHTML='';[{key:'hit',label:'‑1 Hit'},{key:'wound',label:'‑1 Wound'},{key:'attacks',label:'‑1 Attack'}].forEach(o=>{let l=document.createElement('label');l.className='toggle-option';let i=document.createElement('input');i.type='checkbox';i.checked=killDebuffs[o.key];i.onchange=()=>{killDebuffs[o.key]=i.checked;renderScreen4();};l.appendChild(i);l.appendChild(document.createTextNode(o.label));c.appendChild(l)})}
   function clearBuffsDebuffs(){killBuffs={aoa:false,aod:false};killDebuffs={hit:false,wound:false,attacks:false};renderScreen4()}
